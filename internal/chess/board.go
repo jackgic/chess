@@ -146,11 +146,27 @@ func toStandardNotation(fromX, fromY, toX, toY int, piece Piece) string {
 
 // Move 移动棋子
 func (b *Board) Move(start, end int) error {
-	// TODO: 实现移动逻辑
-	// 这里应该包含移动验证、执行移动等逻辑
-
-	// 记录移动（修改为生成标准棋谱格式）
+	// 转换为Position
+	startRow, startCol := start/10, start%10
+	endRow, endCol := end/10, end%10
+	
+	from := Position{Row: startRow, Col: startCol}
+	to := Position{Row: endRow, Col: endCol}
+	
+	// 验证移动是否合法
+	if !b.IsValidMove(from, to) {
+		return fmt.Errorf("非法移动")
+	}
+	
+	// 在移动之前生成棋谱（此时棋子还在原位置）
 	moveStr := b.toStandardNotation(start, end)
+	
+	// 执行移动
+	piece := b.Grid[from.Row][from.Col]
+	b.Grid[to.Row][to.Col] = piece
+	b.Grid[from.Row][from.Col] = Piece{Type: Empty, Color: None}
+	
+	// 记录移动
 	b.MoveList = append(b.MoveList, moveStr)
 
 	return nil
@@ -204,8 +220,9 @@ func (b *Board) toStandardNotation(start, end int) string {
 	// 起始位置（红方用中文数字，黑方用阿拉伯数字）
 	startPos := ""
 	if pieceColor == Red {
-		// 红方：列从右到左为1-9（中文数字）
-		startPos = toChineseNumber(8 - startCol + 1)
+		// 红方：列从右到左为一到九（中文数字）
+		// col 0 → 九, col 1 → 八, ..., col 8 → 一
+		startPos = toChineseNumber(9 - startCol)
 	} else {
 		// 黑方：列从左到右为1-9（阿拉伯数字）
 		startPos = strconv.Itoa(startCol + 1)
@@ -213,8 +230,12 @@ func (b *Board) toStandardNotation(start, end int) string {
 
 	// 移动类型（根据棋子颜色判断方向）
 	moveType := ""
+	
+	// 判断是否是斜向移动的棋子（马、相、士）
+	// isDiagonalPiece := pieceType == Horse || pieceType == Elephant || pieceType == Advisor
+	
 	if startCol == endCol {
-		// 纵向移动
+		// 纵向移动（车、炮、兵、将）
 		if pieceColor == Red {
 			// 红方：向上移动为"进"，向下移动为"退"
 			if endRow < startRow {
@@ -232,12 +253,37 @@ func (b *Board) toStandardNotation(start, end int) string {
 		}
 		// 添加移动步数
 		moveType += strconv.Itoa(abs(startRow - endRow))
-	} else {
-		// 横向移动
+	} else if startRow == endRow {
+		// 纯横向移动（车、炮）
 		moveType = "平"
 		// 目标位置
 		if pieceColor == Red {
-			moveType += toChineseNumber(8 - endCol + 1)
+			// col 0 → 九, col 8 → 一
+			moveType += toChineseNumber(9 - endCol)
+		} else {
+			moveType += strconv.Itoa(endCol + 1)
+		}
+	} else {
+		// 斜向移动（马、相、士）或兵的横向移动
+		if pieceColor == Red {
+			// 红方：向上移动为"进"，向下移动为"退"
+			if endRow < startRow {
+				moveType = "进"
+			} else {
+				moveType = "退"
+			}
+		} else {
+			// 黑方：向下移动为"进"，向上移动为"退"
+			if endRow > startRow {
+				moveType = "进"
+			} else {
+				moveType = "退"
+			}
+		}
+		// 对于斜向移动，使用目标列位置
+		if pieceColor == Red {
+			// col 0 → 九, col 8 → 一
+			moveType += toChineseNumber(9 - endCol)
 		} else {
 			moveType += strconv.Itoa(endCol + 1)
 		}
@@ -609,6 +655,47 @@ func (b *Board) PieceToString(piece Piece) string {
 	return ""
 }
 
+// ToString 将棋盘转换为可视化字符串
+func (b *Board) ToString() string {
+	var sb strings.Builder
+	
+	sb.WriteString("```\n")
+	sb.WriteString("   列: 0 1 2 3 4 5 6 7 8\n")
+	
+	for row := 0; row < 10; row++ {
+		sb.WriteString(fmt.Sprintf("行%d:  ", row))
+		for col := 0; col < 9; col++ {
+			piece := b.Grid[row][col]
+			if piece.Type == Empty {
+				sb.WriteString(". ")
+			} else {
+				pieceStr := b.PieceToFEN(piece)
+				sb.WriteString(pieceStr + " ")
+			}
+		}
+		
+		// 添加行注释
+		if row == 0 {
+			sb.WriteString(" (黑方底线)")
+		} else if row == 2 {
+			sb.WriteString(" (黑方炮)")
+		} else if row == 3 {
+			sb.WriteString(" (黑方卒)")
+		} else if row == 6 {
+			sb.WriteString(" (红方兵)")
+		} else if row == 7 {
+			sb.WriteString(" (红方炮)")
+		} else if row == 9 {
+			sb.WriteString(" (红方底线)")
+		}
+		
+		sb.WriteString("\n")
+	}
+	
+	sb.WriteString("```")
+	return sb.String()
+}
+
 // 辅助函数
 func min(a, b int) int {
 	if a < b {
@@ -633,3 +720,226 @@ const (
 	PieceMask = 0x0F
 	ColorMask = 0xF0
 )
+
+// MoveByChineseNotation 根据中文棋谱执行走子
+// 例如：炮2平5、马二进三、车9进1
+func (b *Board) MoveByChineseNotation(notation string, color Color) error {
+	if len(notation) < 4 {
+		return fmt.Errorf("中文棋谱格式错误: %s", notation)
+	}
+
+	// 解析棋子名称
+	pieceName := string([]rune(notation)[0])
+	pieceType, err := b.parsePieceType(pieceName, color)
+	if err != nil {
+		return err
+	}
+
+	// 解析起始列
+	fromColStr := string([]rune(notation)[1])
+	fromCol, err := b.parseColumn(fromColStr, color)
+	if err != nil {
+		return err
+	}
+
+	// 解析动作
+	action := string([]rune(notation)[2])
+
+	// 解析目标列或步数
+	targetStr := string([]rune(notation)[3])
+	target, err := b.parseNumber(targetStr)
+	if err != nil {
+		return err
+	}
+
+	// 查找符合条件的棋子
+	fromRow, err := b.findPiece(pieceType, color, fromCol)
+	if err != nil {
+		return err
+	}
+
+	// 根据动作计算目标位置
+	var toRow, toCol int
+	switch action {
+	case "平":
+		// 平移：行不变，列改变
+		toRow = fromRow
+		toCol, err = b.parseColumn(targetStr, color)
+		if err != nil {
+			return err
+		}
+	case "进":
+		// 前进
+		// 对于直线移动的棋子（车、炮、兵、卒），列不变，数字表示步数
+		if pieceType == Chariot || pieceType == Cannon || pieceType == Pawn {
+			if color == Red {
+				toRow = fromRow - target // 红方向上移动
+			} else {
+				toRow = fromRow + target // 黑方向下移动
+			}
+			toCol = fromCol
+		} else {
+			// 对于斜线移动的棋子（马、相、士），数字表示目标列
+			toCol, err = b.parseColumn(targetStr, color)
+			if err != nil {
+				return err
+			}
+			// 根据目标列计算行（向前移动）
+			if color == Red {
+				// 红方向上移动，尝试2步或1步
+				if pieceType == Horse {
+					// 马走日字：如果列差为1，则行差为2；如果列差为2，则行差为1
+					colDiff := abs(toCol - fromCol)
+					if colDiff == 1 {
+						toRow = fromRow - 2
+					} else if colDiff == 2 {
+						toRow = fromRow - 1
+					} else {
+						return fmt.Errorf("马的移动不符合日字规则")
+					}
+				} else {
+					// 相、士向前移动1步
+					toRow = fromRow - 1
+				}
+			} else {
+				// 黑方向下移动
+				if pieceType == Horse {
+					colDiff := abs(toCol - fromCol)
+					if colDiff == 1 {
+						toRow = fromRow + 2
+					} else if colDiff == 2 {
+						toRow = fromRow + 1
+					} else {
+						return fmt.Errorf("马的移动不符合日字规则")
+					}
+				} else {
+					toRow = fromRow + 1
+				}
+			}
+		}
+	case "退":
+		// 后退
+		// 对于直线移动的棋子（车、炮、兵、卒），列不变，数字表示步数
+		if pieceType == Chariot || pieceType == Cannon || pieceType == Pawn {
+			if color == Red {
+				toRow = fromRow + target // 红方向下移动
+			} else {
+				toRow = fromRow - target // 黑方向上移动
+			}
+			toCol = fromCol
+		} else {
+			// 对于斜线移动的棋子（马、相、士），数字表示目标列
+			toCol, err = b.parseColumn(targetStr, color)
+			if err != nil {
+				return err
+			}
+			// 根据目标列计算行（向后移动）
+			if color == Red {
+				// 红方向下移动
+				if pieceType == Horse {
+					colDiff := abs(toCol - fromCol)
+					if colDiff == 1 {
+						toRow = fromRow + 2
+					} else if colDiff == 2 {
+						toRow = fromRow + 1
+					} else {
+						return fmt.Errorf("马的移动不符合日字规则")
+					}
+				} else {
+					toRow = fromRow + 1
+				}
+			} else {
+				// 黑方向上移动
+				if pieceType == Horse {
+					colDiff := abs(toCol - fromCol)
+					if colDiff == 1 {
+						toRow = fromRow - 2
+					} else if colDiff == 2 {
+						toRow = fromRow - 1
+					} else {
+						return fmt.Errorf("马的移动不符合日字规则")
+					}
+				} else {
+					toRow = fromRow - 1
+				}
+			}
+		}
+	default:
+		return fmt.Errorf("未知的动作: %s", action)
+	}
+
+	// 验证目标位置是否在棋盘内
+	if toRow < 0 || toRow >= 10 || toCol < 0 || toCol >= 9 {
+		return fmt.Errorf("目标位置超出棋盘范围: (%d,%d)", toRow, toCol)
+	}
+
+	// 执行走子
+	from := fromRow*10 + fromCol
+	to := toRow*10 + toCol
+	return b.Move(from, to)
+}
+
+// parsePieceType 解析棋子类型
+func (b *Board) parsePieceType(name string, color Color) (PieceType, error) {
+	pieceMap := map[string]PieceType{
+		"帅": King, "将": King,
+		"仕": Advisor, "士": Advisor,
+		"相": Elephant, "象": Elephant,
+		"马": Horse,
+		"车": Chariot,
+		"炮": Cannon,
+		"兵": Pawn, "卒": Pawn,
+	}
+
+	pieceType, ok := pieceMap[name]
+	if !ok {
+		return Empty, fmt.Errorf("未知的棋子名称: %s", name)
+	}
+	return pieceType, nil
+}
+
+// parseColumn 解析列号
+func (b *Board) parseColumn(colStr string, color Color) (int, error) {
+	// 数字映射
+	numMap := map[string]int{
+		"1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
+		"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9,
+	}
+
+	num, ok := numMap[colStr]
+	if !ok {
+		return 0, fmt.Errorf("无效的列号: %s", colStr)
+	}
+
+	// 红方：列从右到左为1-9，需要转换为0-8（从左到右）
+	// 黑方：列从左到右为1-9，需要转换为0-8
+	if color == Red {
+		return 9 - num, nil // 红方1对应列8，9对应列0
+	}
+	return num - 1, nil // 黑方1对应列0，9对应列8
+}
+
+// parseNumber 解析数字
+func (b *Board) parseNumber(numStr string) (int, error) {
+	numMap := map[string]int{
+		"1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
+		"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9,
+	}
+
+	num, ok := numMap[numStr]
+	if !ok {
+		return 0, fmt.Errorf("无效的数字: %s", numStr)
+	}
+	return num, nil
+}
+
+// findPiece 查找指定类型和颜色的棋子在指定列的位置
+func (b *Board) findPiece(pieceType PieceType, color Color, col int) (int, error) {
+	for row := 0; row < 10; row++ {
+		piece := b.Grid[row][col]
+		if piece.Type == pieceType && piece.Color == color {
+			return row, nil
+		}
+	}
+	return 0, fmt.Errorf("未找到棋子: type=%d, color=%d, col=%d", pieceType, color, col)
+}

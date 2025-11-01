@@ -160,45 +160,45 @@ func (g *Game) AIMove() (string, error) {
 		return "", fmt.Errorf("不是AI的回合")
 	}
 
-	// 构建包含棋盘状态的提示词
-	prompt := fmt.Sprintf(`当前棋盘状态（FEN格式）：%s
-
-当前轮到：%s
-你是：%s
-
-历史走子：
-%s
-
-请分析当前局面并走子。必须严格按照以下格式输出：
-MOVE: 棋子名称起始位置移动类型目标位置
-
-例如：
-- MOVE: 炮二平五
-- MOVE: 马8进7
-- MOVE: 车九进一
-
-请立即给出你的走子：`,
-		g.Board.ToFEN(),
-		colorToString(g.Board.Turn),
-		colorToString(g.AIColor),
-		formatMoveHistory(g.Board.MoveList))
+	// 构建简洁的提示词 - 只发送中文棋谱
+	var prompt string
+	if len(g.Board.MoveList) == 0 {
+		// 第一步，AI先手（红方）
+		if g.AIColor == chess.Red {
+			prompt = "你是红方，请先走"
+		} else {
+			// 这种情况不应该发生，因为如果AI是黑方，玩家应该先走
+			return "", fmt.Errorf("AI是黑方但棋盘为空，逻辑错误")
+		}
+	} else {
+		// 发送对手刚才的走子（中文棋谱格式）
+		lastMove := g.Board.MoveList[len(g.Board.MoveList)-1]
+		prompt = lastMove
+	}
 
 	// 使用会话ID与智能体交互
+	fmt.Printf("[Game] 发送棋谱给AI: %s\n", prompt)
 	answer, err := g.LKEClient.Chat(g.SessionID, prompt)
 	if err != nil {
+		fmt.Printf("[Game] LKE调用失败: %v\n", err)
 		return "", fmt.Errorf("LKE调用失败: %v", err)
 	}
+	fmt.Printf("[Game] AI回复: %s\n", answer)
 
-	// 解析AI走子指令
-	move, err := g.LKEClient.ExtractMove(answer)
+	// 解析AI返回的中文棋谱
+	chineseMove, err := g.LKEClient.ExtractChineseMove(answer)
 	if err != nil {
-		return "", fmt.Errorf("解析走子失败: %v", err)
+		fmt.Printf("[Game] 解析中文棋谱失败: %v\n", err)
+		return answer, fmt.Errorf("解析中文棋谱失败: %v，AI回复: %s", err, answer)
 	}
+	fmt.Printf("[Game] 解析到的中文棋谱: %s\n", chineseMove)
 
-	// 执行走子
-	if err := g.Board.Move(move.From, move.To); err != nil {
-		return "", fmt.Errorf("执行走子失败: %v", err)
+	// 将中文棋谱转换为坐标并执行走子
+	if err := g.Board.MoveByChineseNotation(chineseMove, g.AIColor); err != nil {
+		fmt.Printf("[Game] 执行中文棋谱失败: %v\n", err)
+		return answer, fmt.Errorf("执行中文棋谱失败: %v，AI回复: %s", err, answer)
 	}
+	fmt.Printf("[Game] 走子执行成功\n")
 
 	// 切换回合
 	if g.Board.Turn == chess.Red {

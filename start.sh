@@ -6,6 +6,11 @@
 
 set -e
 
+# Go环境配置
+export PATH="/usr/local/go/bin:$PATH"
+export GOPATH="$HOME/go"
+export PATH="$GOPATH/bin:$PATH"
+
 # 项目配置
 PROJECT_NAME="chinese-chess-ai"
 LOG_DIR="logs"
@@ -40,7 +45,7 @@ fi
 
 # 编译程序
 echo "正在编译程序..." | tee -a ${LOG_FILE}
-if go build -o ${PROJECT_NAME} .; then
+if go build -o ${PROJECT_NAME} main.go; then
     echo "编译成功!" | tee -a ${LOG_FILE}
 else
     echo "编译失败!" | tee -a ${ERROR_LOG}

@@ -78,7 +78,7 @@ async function startNewGame() {
 
             // 显示游戏界面
             document.getElementById('gameInfo').style.display = 'flex';
-            document.getElementById('boardContainer').style.display = 'flex';
+            document.getElementById('gameArea').style.display = 'flex';
             document.getElementById('moveHistory').style.display = 'block';
 
             // 绘制棋盘
@@ -282,6 +282,8 @@ function handleBoardClick(event) {
 // 玩家走子
 async function playerMove(fromRow, fromCol, toRow, toCol) {
     try {
+        console.log('发送移动请求:', { gameId: gameState.id, fromRow, fromCol, toRow, toCol });
+        
         const response = await fetch('/api/game/move', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -295,6 +297,8 @@ async function playerMove(fromRow, fromCol, toRow, toCol) {
         });
 
         const result = await response.json();
+        console.log('移动响应:', result);
+        
         if (result.success) {
             gameState = result.data;
             selectedPiece = null;
@@ -310,13 +314,18 @@ async function playerMove(fromRow, fromCol, toRow, toCol) {
             // AI走子
             setTimeout(() => requestAIMove(), 500);
         } else {
-            alert('移动失败：' + result.error);
+            // 处理错误响应
+            const errorMsg = result.error || '移动失败';
+            console.error('移动失败:', errorMsg);
+            alert('移动失败：' + errorMsg);
             selectedPiece = null;
             drawBoard();
         }
     } catch (error) {
-        console.error('移动失败:', error);
+        console.error('移动请求异常:', error);
         alert('移动失败，请重试');
+        selectedPiece = null;
+        drawBoard();
     }
 }
 
@@ -350,7 +359,18 @@ async function requestAIMove() {
                 showGameOver();
             }
         } else {
-            alert('AI走子失败：' + result.error);
+            // AI走子失败，显示详细错误信息
+            console.error('AI走子失败:', result.error);
+            const errorMsg = result.error || 'AI走子失败';
+            alert('AI走子失败：' + errorMsg + '\n\n游戏将继续，请等待AI重新思考...');
+            
+            // 重新尝试AI走子（最多重试一次）
+            if (!result.retried) {
+                setTimeout(() => {
+                    console.log('重新尝试AI走子...');
+                    requestAIMove();
+                }, 1000);
+            }
         }
     } catch (error) {
         console.error('AI走子失败:', error);

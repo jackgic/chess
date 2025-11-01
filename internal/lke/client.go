@@ -225,21 +225,52 @@ func (c *Client) buildPrompt(req ChatRequest) string {
 	return prompt.String()
 }
 
-// extractMove 从AI回答中提取走子指令
+// ExtractChineseMove 从AI回答中提取中文棋谱
+func (c *Client) ExtractChineseMove(answer string) (string, error) {
+	log.Printf("[LKE] 开始解析AI回答，提取中文棋谱")
+	log.Printf("[LKE] AI完整回答: %s", answer)
+	
+	// 匹配中文象棋记谱格式 MOVE: 炮2平5 或 MOVE: 炮二平五
+	chineseMovePattern := regexp.MustCompile(`MOVE:\s*([炮车马相象士将帅兵卒])([\d一二三四五六七八九])([进退平])([\d一二三四五六七八九])`)
+	allChineseMatches := chineseMovePattern.FindAllStringSubmatch(answer, -1)
+	if len(allChineseMatches) > 0 {
+		// 使用最后一个匹配（最可能是AI的真实输出）
+		matches := allChineseMatches[len(allChineseMatches)-1]
+		if len(matches) >= 5 {
+			// 返回完整的中文棋谱：棋子名+起始列+动作+目标列/步数
+			chineseMove := matches[1] + matches[2] + matches[3] + matches[4]
+			log.Printf("[LKE] 提取到的中文棋谱: %s", chineseMove)
+			return chineseMove, nil
+		}
+	}
+	
+	log.Printf("[LKE] 无法从回答中提取中文棋谱")
+	return "", fmt.Errorf("无法从回答中提取中文棋谱")
+}
+
+// extractMove 从AI回答中提取走子指令（保留用于向后兼容）
 func (c *Client) extractMove(answer string) string {
 	// 优先匹配中文象棋记谱格式 MOVE: 炮2平5
 	chineseMovePattern := regexp.MustCompile(`MOVE:\s*([炮车马相象士将帅兵卒])(\d|一|二|三|四|五|六|七|八|九)([进退平])(\d|一|二|三|四|五|六|七|八|九)`)
-	matches := chineseMovePattern.FindStringSubmatch(answer)
-	if len(matches) >= 5 {
-		// 转换中文记谱为坐标
-		return c.convertChineseMoveToCoords(matches[1], matches[2], matches[3], matches[4])
+	allChineseMatches := chineseMovePattern.FindAllStringSubmatch(answer, -1)
+	if len(allChineseMatches) > 0 {
+		// 使用最后一个匹配（最可能是AI的真实输出）
+		matches := allChineseMatches[len(allChineseMatches)-1]
+		if len(matches) >= 5 {
+			// 转换中文记谱为坐标
+			return c.convertChineseMoveToCoords(matches[1], matches[2], matches[3], matches[4])
+		}
 	}
 
-	// 匹配 MOVE: 数字格式
+	// 匹配 MOVE: 数字格式，使用FindAllStringSubmatch找到所有匹配
 	movePattern := regexp.MustCompile(`MOVE:\s*(\d)(\d)-(\d)(\d)`)
-	matches = movePattern.FindStringSubmatch(answer)
-	if len(matches) >= 5 {
-		return fmt.Sprintf("%s%s-%s%s", matches[1], matches[2], matches[3], matches[4])
+	allMatches := movePattern.FindAllStringSubmatch(answer, -1)
+	if len(allMatches) > 0 {
+		// 使用最后一个匹配（最可能是AI的真实输出，而不是提示词中的示例）
+		matches := allMatches[len(allMatches)-1]
+		if len(matches) >= 5 {
+			return fmt.Sprintf("%s%s-%s%s", matches[1], matches[2], matches[3], matches[4])
+		}
 	}
 
 	// 匹配其他格式
@@ -286,19 +317,27 @@ type Move struct {
 
 // ExtractMove 从AI回答中提取移动指令，返回Move结构体
 func (c *Client) ExtractMove(answer string) (*Move, error) {
+	log.Printf("[LKE] 开始解析AI回答，提取走子指令")
+	log.Printf("[LKE] AI完整回答: %s", answer)
+	
 	moveStr := c.extractMove(answer)
 	if moveStr == "" {
+		log.Printf("[LKE] 无法从回答中提取移动指令")
 		return nil, fmt.Errorf("无法从回答中提取移动指令")
 	}
+	
+	log.Printf("[LKE] 提取到的走子字符串: %s", moveStr)
 
 	// 解析移动字符串 "0102-0304" 格式
 	parts := strings.Split(moveStr, "-")
 	if len(parts) != 2 {
+		log.Printf("[LKE] 移动格式错误，parts长度: %d", len(parts))
 		return nil, fmt.Errorf("移动格式错误: %s", moveStr)
 	}
 
 	// 解析起始位置
 	if len(parts[0]) != 2 {
+		log.Printf("[LKE] 起始位置格式错误: %s", parts[0])
 		return nil, fmt.Errorf("起始位置格式错误: %s", parts[0])
 	}
 	fromRow := int(parts[0][0] - '0')
@@ -307,11 +346,14 @@ func (c *Client) ExtractMove(answer string) (*Move, error) {
 
 	// 解析目标位置
 	if len(parts[1]) != 2 {
+		log.Printf("[LKE] 目标位置格式错误: %s", parts[1])
 		return nil, fmt.Errorf("目标位置格式错误: %s", parts[1])
 	}
 	toRow := int(parts[1][0] - '0')
 	toCol := int(parts[1][1] - '0')
 	to := toRow*10 + toCol
+	
+	log.Printf("[LKE] 解析成功 - 从(%d,%d)到(%d,%d), from=%d, to=%d", fromRow, fromCol, toRow, toCol, from, to)
 
 	return &Move{
 		From: from,

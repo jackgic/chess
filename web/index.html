@@ -30,18 +30,22 @@
             </div>
         </div>
 
-        <div id="boardContainer" class="board-container" style="display: none;">
-            <canvas id="chessBoard" width="540" height="600"></canvas>
-        </div>
+        <div id="gameArea" class="game-area" style="display: none;">
+            <div id="boardContainer" class="board-container">
+                <canvas id="chessBoard" width="540" height="600"></canvas>
+            </div>
 
-        <div id="aiThinking" class="ai-thinking" style="display: none;">
-            <div class="spinner"></div>
-            <span>AI 思考中...</span>
-        </div>
+            <div class="ai-panel">
+                <div id="aiThinking" class="ai-thinking" style="display: none;">
+                    <div class="spinner"></div>
+                    <span>AI 思考中...</span>
+                </div>
 
-        <div id="aiResponse" class="ai-response" style="display: none;">
-            <h3>AI 分析：</h3>
-            <p id="aiAnswer"></p>
+                <div id="aiResponse" class="ai-response" style="display: none;">
+                    <h3>AI 分析：</h3>
+                    <p id="aiAnswer"></p>
+                </div>
+            </div>
         </div>
 
         <div id="moveHistory" class="move-history" style="display: none;">

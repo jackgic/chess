@@ -60,18 +60,27 @@ type MoveRequest struct {
 func PlayerMove(c *gin.Context) {
 	var req MoveRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求参数"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "无效的请求参数",
+		})
 		return
 	}
 
 	g, err := gameManager.GetGame(req.GameID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
 		return
 	}
 
 	if err := g.PlayerMove(req.FromRow, req.FromCol, req.ToRow, req.ToCol); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
 		return
 	}
 

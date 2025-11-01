@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>前端功能测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        button { padding: 10px 20px; margin: 5px; }
+        #output { background: #f5f5f5; padding: 10px; margin: 10px 0; min-height: 100px; }
+    </style>
+</head>
+<body>
+    <h1>前端功能测试</h1>
+    
+    <div class="test-section">
+        <h2>API连接测试</h2>
+        <button onclick="testHealth()">测试健康检查</button>
+        <button onclick="testNewGame()">测试创建游戏</button>
+        <button onclick="testMove()">测试走子</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>输出日志</h2>
+        <div id="output"></div>
+        <button onclick="clearOutput()">清空日志</button>
+    </div>
+
+    <script>
+        function log(message) {
+            const output = document.getElementById('output');
+            const time = new Date().toLocaleTimeString();
+            output.innerHTML += `[${time}] ${message}<br>`;
+            output.scrollTop = output.scrollHeight;
+            console.log(message);
+        }
+
+        function clearOutput() {
+            document.getElementById('output').innerHTML = '';
+        }
+
+        async function testHealth() {
+            try {
+                log('测试健康检查...');
+                const response = await fetch('/api/health');
+                const result = await response.json();
+                log('健康检查结果: ' + JSON.stringify(result));
+            } catch (error) {
+                log('健康检查失败: ' + error.message);
+            }
+        }
+
+        async function testNewGame() {
+            try {
+                log('测试创建游戏...');
+                const response = await fetch('/api/game/new', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playerColor: 1 })
+                });
+                const result = await response.json();
+                log('创建游戏结果: ' + (result.success ? '成功' : '失败'));
+                if (result.success) {
+                    log('游戏ID: ' + result.data.id);
+                    log('玩家颜色: ' + result.data.playerColor);
+                    log('AI颜色: ' + result.data.aiColor);
+                    log('当前回合: ' + result.data.turn);
+                    
+                    // 测试棋盘数据
+                    const board = result.data.board;
+                    let pieceCount = 0;
+                    for (let row = 0; row < 10; row++) {
+                        for (let col = 0; col < 9; col++) {
+                            if (board[row][col].type !== 0) {
+                                pieceCount++;
+                            }
+                        }
+                    }
+                    log('棋盘上有 ' + pieceCount + ' 个棋子');
+                    
+                    // 显示第一行棋子
+                    log('第一行棋子: ' + board[0].map(p => p.name || '空').join(' '));
+                    log('最后一行棋子: ' + board[9].map(p => p.name || '空').join(' '));
+                } else {
+                    log('错误: ' + result.error);
+                }
+            } catch (error) {
+                log('创建游戏失败: ' + error.message);
+            }
+        }
+
+        async function testMove() {
+            try {
+                log('测试走子功能...');
+                // 首先创建游戏
+                const newGameResponse = await fetch('/api/game/new', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playerColor: 1 })
+                });
+                const gameResult = await newGameResponse.json();
+                
+                if (!gameResult.success) {
+                    log('创建游戏失败: ' + gameResult.error);
+                    return;
+                }
+                
+                const gameId = gameResult.data.id;
+                log('游戏创建成功，ID: ' + gameId);
+                
+                // 尝试走子：炮二平五
+                const moveResponse = await fetch('/api/game/move', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        gameId: gameId,
+                        fromRow: 7,
+                        fromCol: 1,
+                        toRow: 7,
+                        toCol: 4
+                    })
+                });
+                
+                const moveResult = await moveResponse.json();
+                log('走子结果: ' + (moveResult.success ? '成功' : '失败'));
+                if (moveResult.success) {
+                    log('当前回合: ' + moveResult.data.turn);
+                    log('走子历史: ' + JSON.stringify(moveResult.data.moveList));
+                } else {
+                    log('走子错误: ' + moveResult.error);
+                }
+            } catch (error) {
+                log('测试走子失败: ' + error.message);
+            }
+        }
+
+        // 页面加载时自动测试健康检查
+        window.onload = function() {
+            log('页面加载完成，开始测试...');
+            testHealth();
+        };
+    </script>
+</body>
+</html>

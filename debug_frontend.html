@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>前端调试 - 中国象棋 AI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .debug-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+        .debug-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .board-container {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+        #chessBoard {
+            border: 2px solid #333;
+            cursor: pointer;
+        }
+        .info-panel {
+            flex: 1;
+            min-width: 300px;
+        }
+        .btn {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .btn-warning {
+            background: #ffc107;
+            color: black;
+        }
+        .color-btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            cursor: pointer;
+            background: white;
+        }
+        .color-btn.active {
+            border-color: #007bff;
+            background: #e7f3ff;
+        }
+        .log-area {
+            height: 200px;
+            overflow-y: auto;
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            border-radius: 5px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-ok { background: #28a745; }
+        .status-error { background: #dc3545; }
+        .status-warning { background: #ffc107; }
+        .game-info {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐛 前端调试 - 中国象棋 AI</h1>
+        
+        <div class="debug-section">
+            <h3>🔧 系统检查</h3>
+            <div id="systemCheck">
+                <div><span id="canvasStatus" class="status-indicator status-error"></span>Canvas 支持</div>
+                <div><span id="apiStatus" class="status-indicator status-error"></span>API 连接</div>
+                <div><span id="jsStatus" class="status-indicator status-error"></span>JavaScript 功能</div>
+            </div>
+        </div>
+
+        <div class="debug-section">
+            <h3>🎮 游戏控制</h3>
+            <div>
+                <label>选择颜色：</label>
+                <button class="color-btn active" data-color="1">红方（先手）</button>
+                <button class="color-btn" data-color="2">黑方（后手）</button>
+            </div>
+            <div style="margin-top: 10px;">
+                <button id="newGameBtn" class="btn btn-primary">开始新游戏</button>
+                <button id="testApiBtn" class="btn btn-success">测试 API</button>
+                <button id="clearLogBtn" class="btn btn-warning">清空日志</button>
+            </div>
+        </div>
+
+        <div class="board-container">
+            <div>
+                <h3>🏁 棋盘</h3>
+                <canvas id="chessBoard" width="540" height="600"></canvas>
+            </div>
+            
+            <div class="info-panel">
+                <div class="debug-section">
+                    <h3>📊 游戏状态</h3>
+                    <div id="gameInfo" class="game-info">
+                        <div>游戏ID: <span id="gameId">未创建</span></div>
+                        <div>当前回合: <span id="currentTurn">-</span></div>
+                        <div>游戏状态: <span id="gameStatus">-</span></div>
+                        <div>玩家颜色: <span id="playerColor">-</span></div>
+                        <div>选中棋子: <span id="selectedPiece">无</span></div>
+                    </div>
+                </div>
+
+                <div class="debug-section">
+                    <h3>📝 调试日志</h3>
+                    <div id="debugLog" class="log-area"></div>
+                </div>
+
+                <div class="debug-section">
+                    <h3>🔍 最后点击</h3>
+                    <div id="lastClick">
+                        <div>坐标: <span id="clickCoords">-</span></div>
+                        <div>格子: <span id="clickCell">-</span></div>
+                        <div>棋子: <span id="clickPiece">-</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 调试日志系统
+        const debugLog = document.getElementById('debugLog');
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#ff6b6b' : type === 'success' ? '#51cf66' : type === 'warning' ? '#ffd43b' : '#74c0fc';
+            debugLog.innerHTML += `<div style="color: ${color}">[${timestamp}] ${message}</div>`;
+            debugLog.scrollTop = debugLog.scrollHeight;
+            console.log(`[DEBUG] ${message}`);
+        }
+
+        // 游戏状态
+        let gameState = null;
+        let selectedPiece = null;
+        let canvas = null;
+        let ctx = null;
+
+        // 常量
+        const BOARD_PADDING = 30;
+        const CELL_SIZE = 60;
+        const PIECE_RADIUS = 25;
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            log('页面加载完成，开始初始化...', 'info');
+            
+            // 检查Canvas支持
+            canvas = document.getElementById('chessBoard');
+            if (!canvas) {
+                log('❌ 找不到Canvas元素', 'error');
+                return;
+            }
+            
+            ctx = canvas.getContext('2d');
+            if (!ctx) {
+                log('❌ 无法获取Canvas 2D上下文', 'error');
+                return;
+            }
+            
+            document.getElementById('canvasStatus').className = 'status-indicator status-ok';
+            log('✅ Canvas初始化成功', 'success');
+
+            // 测试API连接
+            testApiConnection();
+
+            // 设置事件监听器
+            setupEventListeners();
+            
+            document.getElementById('jsStatus').className = 'status-indicator status-ok';
+            log('✅ JavaScript功能初始化完成', 'success');
+        });
+
+        // 测试API连接
+        async function testApiConnection() {
+            try {
+                const response = await fetch('/api/health');
+                if (response.ok) {
+                    document.getElementById('apiStatus').className = 'status-indicator status-ok';
+                    log('✅ API连接正常', 'success');
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                document.getElementById('apiStatus').className = 'status-indicator status-error';
+                log(`❌ API连接失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 颜色选择
+            document.querySelectorAll('.color-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    log(`选择颜色: ${btn.textContent}`, 'info');
+                });
+            });
+
+            // 按钮事件
+            document.getElementById('newGameBtn').addEventListener('click', startNewGame);
+            document.getElementById('testApiBtn').addEventListener('click', testApiConnection);
+            document.getElementById('clearLogBtn').addEventListener('click', () => {
+                debugLog.innerHTML = '';
+                log('日志已清空', 'info');
+            });
+
+            // 棋盘点击事件
+            canvas.addEventListener('click', handleBoardClick);
+            canvas.addEventListener('mousemove', handleMouseMove);
+        }
+
+        // 鼠标移动事件（显示坐标）
+        function handleMouseMove(event) {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            const col = Math.round((x - BOARD_PADDING) / CELL_SIZE);
+            const row = Math.round((y - BOARD_PADDING) / CELL_SIZE);
+            
+            document.getElementById('clickCoords').textContent = `(${Math.round(x)}, ${Math.round(y)})`;
+            document.getElementById('clickCell').textContent = `行${row} 列${col}`;
+        }
+
+        // 开始新游戏
+        async function startNewGame() {
+            const playerColor = parseInt(document.querySelector('.color-btn.active').dataset.color);
+            log(`开始创建新游戏，玩家颜色: ${playerColor === 1 ? '红方' : '黑方'}`, 'info');
+
+            try {
+                const response = await fetch('/api/game/new', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playerColor })
+                });
+
+                const result = await response.json();
+                log(`游戏创建响应: ${JSON.stringify(result)}`, 'info');
+                
+                if (result.success) {
+                    gameState = result.data;
+                    selectedPiece = null;
+                    updateGameInfo();
+                    drawBoard();
+                    log('✅ 游戏创建成功', 'success');
+                } else {
+                    log(`❌ 游戏创建失败: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ 网络错误: ${error.message}`, 'error');
+            }
+        }
+
+        // 更新游戏信息显示
+        function updateGameInfo() {
+            if (!gameState) return;
+            
+            document.getElementById('gameId').textContent = gameState.id || '未知';
+            document.getElementById('currentTurn').textContent = gameState.turn === 1 ? '红方' : '黑方';
+            document.getElementById('gameStatus').textContent = gameState.status || '未知';
+            document.getElementById('playerColor').textContent = gameState.playerColor === 1 ? '红方' : '黑方';
+            document.getElementById('selectedPiece').textContent = selectedPiece ? 
+                `行${selectedPiece.row} 列${selectedPiece.col}` : '无';
+        }
+
+        // 绘制棋盘
+        function drawBoard() {
+            if (!ctx || !gameState) {
+                log('❌ 无法绘制棋盘：缺少上下文或游戏状态', 'error');
+                return;
+            }
+
+            // 清空画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 绘制背景
+            ctx.fillStyle = '#F4A460';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 绘制棋盘线
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+
+            // 横线
+            for (let i = 0; i < 10; i++) {
+                ctx.beginPath();
+                ctx.moveTo(BOARD_PADDING, BOARD_PADDING + i * CELL_SIZE);
+                ctx.lineTo(BOARD_PADDING + 8 * CELL_SIZE, BOARD_PADDING + i * CELL_SIZE);
+                ctx.stroke();
+            }
+
+            // 竖线
+            for (let i = 0; i < 9; i++) {
+                ctx.beginPath();
+                ctx.moveTo(BOARD_PADDING + i * CELL_SIZE, BOARD_PADDING);
+                if (i === 0 || i === 8) {
+                    ctx.lineTo(BOARD_PADDING + i * CELL_SIZE, BOARD_PADDING + 9 * CELL_SIZE);
+                } else {
+                    ctx.lineTo(BOARD_PADDING + i * CELL_SIZE, BOARD_PADDING + 4 * CELL_SIZE);
+                    ctx.moveTo(BOARD_PADDING + i * CELL_SIZE, BOARD_PADDING + 5 * CELL_SIZE);
+                    ctx.lineTo(BOARD_PADDING + i * CELL_SIZE, BOARD_PADDING + 9 * CELL_SIZE);
+                }
+                ctx.stroke();
+            }
+
+            // 绘制九宫格斜线
+            drawDiagonal(3, 0, 5, 2);
+            drawDiagonal(5, 0, 3, 2);
+            drawDiagonal(3, 7, 5, 9);
+            drawDiagonal(5, 7, 3, 9);
+
+            // 绘制楚河汉界
+            ctx.font = 'bold 24px Arial';
+            ctx.fillStyle = '#000';
+            ctx.textAlign = 'center';
+            ctx.fillText('楚河', BOARD_PADDING + 2 * CELL_SIZE, BOARD_PADDING + 4.7 * CELL_SIZE);
+            ctx.fillText('汉界', BOARD_PADDING + 6 * CELL_SIZE, BOARD_PADDING + 4.7 * CELL_SIZE);
+
+            // 绘制棋子
+            let pieceCount = 0;
+            if (gameState && gameState.board) {
+                for (let row = 0; row < 10; row++) {
+                    for (let col = 0; col < 9; col++) {
+                        const piece = gameState.board[row][col];
+                        if (piece && piece.type !== 0) {
+                            drawPiece(row, col, piece);
+                            pieceCount++;
+                        }
+                    }
+                }
+                log(`绘制了 ${pieceCount} 个棋子`, 'info');
+            }
+
+            // 绘制选中标记
+            if (selectedPiece) {
+                drawSelection(selectedPiece.row, selectedPiece.col);
+            }
+        }
+
+        // 绘制斜线
+        function drawDiagonal(col1, row1, col2, row2) {
+            ctx.beginPath();
+            ctx.moveTo(BOARD_PADDING + col1 * CELL_SIZE, BOARD_PADDING + row1 * CELL_SIZE);
+            ctx.lineTo(BOARD_PADDING + col2 * CELL_SIZE, BOARD_PADDING + row2 * CELL_SIZE);
+            ctx.stroke();
+        }
+
+        // 绘制棋子
+        function drawPiece(row, col, piece) {
+            const x = BOARD_PADDING + col * CELL_SIZE;
+            const y = BOARD_PADDING + row * CELL_SIZE;
+
+            // 绘制棋子圆形
+            ctx.beginPath();
+            ctx.arc(x, y, PIECE_RADIUS, 0, 2 * Math.PI);
+            ctx.fillStyle = piece.color === 1 ? '#FFE4B5' : '#2F4F4F';
+            ctx.fill();
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // 绘制棋子文字
+            ctx.font = 'bold 24px "Microsoft YaHei", "SimHei", "黑体", Arial, sans-serif';
+            ctx.fillStyle = piece.color === 1 ? '#DC143C' : '#000';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            const pieceName = piece.name || '?';
+            ctx.fillText(pieceName, x, y);
+        }
+
+        // 绘制选中标记
+        function drawSelection(row, col) {
+            const x = BOARD_PADDING + col * CELL_SIZE;
+            const y = BOARD_PADDING + row * CELL_SIZE;
+
+            ctx.strokeStyle = '#00FF00';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(x, y, PIECE_RADIUS + 5, 0, 2 * Math.PI);
+            ctx.stroke();
+        }
+
+        // 处理棋盘点击
+        function handleBoardClick(event) {
+            log('🖱️ 棋盘被点击', 'info');
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            const col = Math.round((x - BOARD_PADDING) / CELL_SIZE);
+            const row = Math.round((y - BOARD_PADDING) / CELL_SIZE);
+
+            log(`点击坐标: (${Math.round(x)}, ${Math.round(y)}) -> 格子: 行${row} 列${col}`, 'info');
+
+            if (row < 0 || row > 9 || col < 0 || col > 8) {
+                log('❌ 点击位置超出棋盘范围', 'warning');
+                return;
+            }
+
+            if (!gameState) {
+                log('❌ 游戏未开始', 'warning');
+                return;
+            }
+
+            const piece = gameState.board[row][col];
+            log(`点击的棋子: type=${piece?.type || 0}, color=${piece?.color || 0}, name=${piece?.name || '空'}`, 'info');
+            
+            document.getElementById('clickPiece').textContent = piece?.name || '空位';
+
+            if (!selectedPiece) {
+                // 选择棋子
+                if (piece && piece.type !== 0 && piece.color === gameState.playerColor) {
+                    selectedPiece = { row, col };
+                    log(`✅ 选择棋子: ${piece.name} 在 行${row} 列${col}`, 'success');
+                    updateGameInfo();
+                    drawBoard();
+                } else {
+                    log(`❌ 无法选择棋子 - 不是己方棋子或空位`, 'warning');
+                }
+            } else {
+                // 移动棋子或取消选择
+                if (row === selectedPiece.row && col === selectedPiece.col) {
+                    selectedPiece = null;
+                    log('取消选择棋子', 'info');
+                    updateGameInfo();
+                    drawBoard();
+                } else {
+                    log(`尝试移动棋子从 行${selectedPiece.row} 列${selectedPiece.col} 到 行${row} 列${col}`, 'info');
+                    playerMove(selectedPiece.row, selectedPiece.col, row, col);
+                }
+            }
+        }
+
+        // 玩家走子
+        async function playerMove(fromRow, fromCol, toRow, toCol) {
+            if (gameState.turn !== gameState.playerColor) {
+                log('❌ 不是玩家回合', 'error');
+                return;
+            }
+
+            try {
+                log(`发送移动请求: 从(${fromRow},${fromCol})到(${toRow},${toCol})`, 'info');
+                
+                const response = await fetch('/api/game/move', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        gameId: gameState.id,
+                        fromRow,
+                        fromCol,
+                        toRow,
+                        toCol
+                    })
+                });
+
+                const result = await response.json();
+                log(`移动响应: ${JSON.stringify(result)}`, 'info');
+
+                if (result.success) {
+                    gameState = result.data;
+                    selectedPiece = null;
+                    updateGameInfo();
+                    drawBoard();
+                    log('✅ 移动成功', 'success');
+
+                    // 如果游戏继续，请求AI走子
+                    if (gameState.status === 'playing') {
+                        setTimeout(() => requestAIMove(), 1000);
+                    }
+                } else {
+                    log(`❌ 移动失败: ${result.error}`, 'error');
+                    selectedPiece = null;
+                    updateGameInfo();
+                    drawBoard();
+                }
+            } catch (error) {
+                log(`❌ 网络错误: ${error.message}`, 'error');
+            }
+        }
+
+        // 请求AI走子
+        async function requestAIMove() {
+            log('🤖 请求AI走子...', 'info');
+            
+            try {
+                const response = await fetch(`/api/game/${gameState.id}/ai-move`, {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+                log(`AI走子响应: ${JSON.stringify(result)}`, 'info');
+
+                if (result.success) {
+                    gameState = result.data.state;
+                    updateGameInfo();
+                    drawBoard();
+                    log(`✅ AI走子成功: ${result.data.answer}`, 'success');
+                } else {
+                    log(`❌ AI走子失败: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ AI走子网络错误: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中国象棋 AI 对弈</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>中国象棋 AI 对弈</h1>
+        
+        <div class="game-controls">
+            <div class="color-selection">
+                <label>选择你的颜色：</label>
+                <button id="redBtn" class="color-btn active" data-color="1">红方（先手）</button>
+                <button id="blackBtn" class="color-btn" data-color="2">黑方（后手）</button>
+            </div>
+            <button id="newGameBtn" class="btn btn-primary">开始新游戏</button>
+        </div>
+
+        <div id="gameInfo" class="game-info" style="display: none;">
+            <div class="info-item">
+                <span class="label">当前回合：</span>
+                <span id="currentTurn" class="value"></span>
+            </div>
+            <div class="info-item">
+                <span class="label">游戏状态：</span>
+                <span id="gameStatus" class="value">进行中</span>
+            </div>
+        </div>
+
+        <div id="boardContainer" class="board-container" style="display: none;">
+            <canvas id="chessBoard" width="540" height="600"></canvas>
+        </div>
+
+        <div id="aiThinking" class="ai-thinking" style="display: none;">
+            <div class="spinner"></div>
+            <span>AI 思考中...</span>
+        </div>
+
+        <div id="aiResponse" class="ai-response" style="display: none;">
+            <h3>AI 分析：</h3>
+            <p id="aiAnswer"></p>
+        </div>
+
+        <div id="moveHistory" class="move-history" style="display: none;">
+            <h3>走子历史</h3>
+            <div id="moveList"></div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

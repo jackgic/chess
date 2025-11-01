@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas棋盘测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #chessBoard { border: 2px solid #000; margin: 20px 0; }
+        .controls { margin: 10px 0; }
+        button { padding: 10px 20px; margin: 5px; }
+        #log { background: #f5f5f5; padding: 10px; height: 200px; overflow-y: scroll; }
+    </style>
+</head>
+<body>
+    <h1>Canvas棋盘测试</h1>
+    
+    <div class="controls">
+        <button onclick="drawTestBoard()">绘制测试棋盘</button>
+        <button onclick="testAPI()">测试API</button>
+        <button onclick="clearLog()">清空日志</button>
+    </div>
+    
+    <canvas id="chessBoard" width="540" height="600"></canvas>
+    
+    <div id="log"></div>
+
+    <script>
+        const canvas = document.getElementById('chessBoard');
+        const ctx = canvas.getContext('2d');
+        
+        const BOARD_PADDING = 30;
+        const CELL_SIZE = 60;
+        const PIECE_RADIUS = 25;
+        
+        let gameData = null;
+
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${time}] ${message}<br>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        function drawTestBoard() {
+            log('开始绘制测试棋盘...');
+            
+            // 清空画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制背景
+            ctx.fillStyle = '#F4A460';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制棋盘线
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            
+            // 横线
+            for (let i = 0; i < 10; i++) {
+                ctx.beginPath();
+                ctx.moveTo(BOARD_PADDING, BOARD_PADDING + i * CELL_SIZE);
+                ctx.lineTo(BOARD_PADDING + 8 * CELL_SIZE, BOARD_PADDING + i * CELL_SIZE);
+                ctx.stroke();
+            }
+            
+            // 竖线
+            for (let i = 0; i < 9; i++) {
+                ctx.beginPath();
+                ctx.moveTo(BOARD_PADDING + i * CELL_SIZE, BOARD_PADDING);
+                if (i === 0 || i === 8) {
+                    ctx.lineTo(BOARD_PADDING + i * CELL_SIZE, BOARD_PADDING + 9 * CELL_SIZE);
+                } else {
+                    ctx.lineTo(BOARD_PADDING + i * CELL_SIZE, BOARD_PADDING + 4 * CELL_SIZE);
+                    ctx.moveTo(BOARD_PADDING + i * CELL_SIZE, BOARD_PADDING + 5 * CELL_SIZE);
+                    ctx.lineTo(BOARD_PADDING + i * CELL_SIZE, BOARD_PADDING + 9 * CELL_SIZE);
+                }
+                ctx.stroke();
+            }
+            
+            log('棋盘线绘制完成');
+            
+            // 绘制测试棋子
+            drawTestPiece(0, 0, '车', 2); // 黑车
+            drawTestPiece(0, 4, '将', 2); // 黑将
+            drawTestPiece(9, 0, '车', 1); // 红车
+            drawTestPiece(9, 4, '帅', 1); // 红帅
+            
+            log('测试棋子绘制完成');
+        }
+
+        function drawTestPiece(row, col, name, color) {
+            const x = BOARD_PADDING + col * CELL_SIZE;
+            const y = BOARD_PADDING + row * CELL_SIZE;
+            
+            log(`绘制棋子 ${name} 在 (${row},${col}) -> (${x},${y})`);
+            
+            // 绘制棋子圆形
+            ctx.beginPath();
+            ctx.arc(x, y, PIECE_RADIUS, 0, 2 * Math.PI);
+            ctx.fillStyle = color === 1 ? '#FFE4B5' : '#2F4F4F';
+            ctx.fill();
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // 绘制棋子文字
+            ctx.font = 'bold 24px SimHei';
+            ctx.fillStyle = color === 1 ? '#DC143C' : '#000';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(name, x, y);
+        }
+
+        async function testAPI() {
+            try {
+                log('测试API创建游戏...');
+                const response = await fetch('/api/game/new', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playerColor: 1 })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    gameData = result.data;
+                    log('游戏创建成功: ' + gameData.id);
+                    drawRealBoard();
+                } else {
+                    log('游戏创建失败: ' + result.error);
+                }
+            } catch (error) {
+                log('API测试失败: ' + error.message);
+            }
+        }
+
+        function drawRealBoard() {
+            if (!gameData) {
+                log('没有游戏数据');
+                return;
+            }
+            
+            log('开始绘制真实棋盘...');
+            
+            // 清空画布并绘制棋盘
+            drawTestBoard();
+            
+            // 绘制真实棋子
+            const board = gameData.board;
+            let pieceCount = 0;
+            
+            for (let row = 0; row < 10; row++) {
+                for (let col = 0; col < 9; col++) {
+                    const piece = board[row][col];
+                    if (piece.type !== 0) {
+                        drawTestPiece(row, col, piece.name, piece.color);
+                        pieceCount++;
+                    }
+                }
+            }
+            
+            log(`绘制了 ${pieceCount} 个真实棋子`);
+        }
+
+        // 添加点击事件测试
+        canvas.addEventListener('click', function(event) {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            
+            const col = Math.round((x - BOARD_PADDING) / CELL_SIZE);
+            const row = Math.round((y - BOARD_PADDING) / CELL_SIZE);
+            
+            log(`点击坐标: 像素(${x.toFixed(1)}, ${y.toFixed(1)}) -> 棋盘(${row}, ${col})`);
+            
+            if (gameData && row >= 0 && row < 10 && col >= 0 && col < 9) {
+                const piece = gameData.board[row][col];
+                log(`点击的棋子: ${piece.name || '空'} (type: ${piece.type}, color: ${piece.color})`);
+            }
+        });
+
+        // 页面加载时绘制测试棋盘
+        window.onload = function() {
+            log('页面加载完成');
+            drawTestBoard();
+        };
+    </script>
+</body>
+</html>

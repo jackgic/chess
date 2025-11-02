@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JavaScript测试</title>
+</head>
+<body>
+    <h1>JavaScript测试页面</h1>
+    <button id="testBtn">测试按钮</button>
+    <div id="result"></div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('测试页面加载完成');
+            const testBtn = document.getElementById('testBtn');
+            const result = document.getElementById('result');
+            
+            if (testBtn) {
+                testBtn.addEventListener('click', () => {
+                    console.log('测试按钮被点击');
+                    result.innerHTML = '按钮点击成功！JavaScript工作正常。';
+                });
+                console.log('测试按钮事件监听器已添加');
+            }
+        });
+    </script>
+</body>
+</html>

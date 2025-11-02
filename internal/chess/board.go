@@ -2,6 +2,7 @@ package chess
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -39,6 +40,7 @@ type Piece struct {
 type Board struct {
 	Grid     [10][9]Piece // 10行9列
 	Turn     Color        // 当前回合
+	FirstMove Color        // 先手方颜色
 	MoveList []string     // 移动历史
 	Moves    []Move       // 移动列表
 }
@@ -60,9 +62,10 @@ type Move struct {
 }
 
 // NewBoard 创建新棋盘
-func NewBoard() *Board {
+func NewBoard(firstMove Color) *Board {
 	board := &Board{
-		Turn:     Red,
+		Turn:     firstMove,
+		FirstMove: firstMove,
 		MoveList: []string{},
 	}
 	board.InitBoard()
@@ -78,41 +81,82 @@ func (b *Board) InitBoard() {
 		}
 	}
 
-	// 黑方（上方）
-	b.Grid[0][0] = Piece{Chariot, Black}
-	b.Grid[0][1] = Piece{Horse, Black}
-	b.Grid[0][2] = Piece{Elephant, Black}
-	b.Grid[0][3] = Piece{Advisor, Black}
-	b.Grid[0][4] = Piece{King, Black}
-	b.Grid[0][5] = Piece{Advisor, Black}
-	b.Grid[0][6] = Piece{Elephant, Black}
-	b.Grid[0][7] = Piece{Horse, Black}
-	b.Grid[0][8] = Piece{Chariot, Black}
-	b.Grid[2][1] = Piece{Cannon, Black}
-	b.Grid[2][7] = Piece{Cannon, Black}
-	b.Grid[3][0] = Piece{Pawn, Black}
-	b.Grid[3][2] = Piece{Pawn, Black}
-	b.Grid[3][4] = Piece{Pawn, Black}
-	b.Grid[3][6] = Piece{Pawn, Black}
-	b.Grid[3][8] = Piece{Pawn, Black}
+	// 根据先手方设置棋子布局
+	if b.FirstMove == Red {
+		// 红方先手（玩家执红），红方在下方（靠近玩家）
+		// 红方（下方）
+		b.Grid[9][0] = Piece{Chariot, Red}
+		b.Grid[9][1] = Piece{Horse, Red}
+		b.Grid[9][2] = Piece{Elephant, Red}
+		b.Grid[9][3] = Piece{Advisor, Red}
+		b.Grid[9][4] = Piece{King, Red}
+		b.Grid[9][5] = Piece{Advisor, Red}
+		b.Grid[9][6] = Piece{Elephant, Red}
+		b.Grid[9][7] = Piece{Horse, Red}
+		b.Grid[9][8] = Piece{Chariot, Red}
+		b.Grid[7][1] = Piece{Cannon, Red}
+		b.Grid[7][7] = Piece{Cannon, Red}
+		b.Grid[6][0] = Piece{Pawn, Red}
+		b.Grid[6][2] = Piece{Pawn, Red}
+		b.Grid[6][4] = Piece{Pawn, Red}
+		b.Grid[6][6] = Piece{Pawn, Red}
+		b.Grid[6][8] = Piece{Pawn, Red}
 
-	// 红方（下方）
-	b.Grid[9][0] = Piece{Chariot, Red}
-	b.Grid[9][1] = Piece{Horse, Red}
-	b.Grid[9][2] = Piece{Elephant, Red}
-	b.Grid[9][3] = Piece{Advisor, Red}
-	b.Grid[9][4] = Piece{King, Red}
-	b.Grid[9][5] = Piece{Advisor, Red}
-	b.Grid[9][6] = Piece{Elephant, Red}
-	b.Grid[9][7] = Piece{Horse, Red}
-	b.Grid[9][8] = Piece{Chariot, Red}
-	b.Grid[7][1] = Piece{Cannon, Red}
-	b.Grid[7][7] = Piece{Cannon, Red}
-	b.Grid[6][0] = Piece{Pawn, Red}
-	b.Grid[6][2] = Piece{Pawn, Red}
-	b.Grid[6][4] = Piece{Pawn, Red}
-	b.Grid[6][6] = Piece{Pawn, Red}
-	b.Grid[6][8] = Piece{Pawn, Red}
+		// 黑方（上方）
+		b.Grid[0][0] = Piece{Chariot, Black}
+		b.Grid[0][1] = Piece{Horse, Black}
+		b.Grid[0][2] = Piece{Elephant, Black}
+		b.Grid[0][3] = Piece{Advisor, Black}
+		b.Grid[0][4] = Piece{King, Black}
+		b.Grid[0][5] = Piece{Advisor, Black}
+		b.Grid[0][6] = Piece{Elephant, Black}
+		b.Grid[0][7] = Piece{Horse, Black}
+		b.Grid[0][8] = Piece{Chariot, Black}
+		b.Grid[2][1] = Piece{Cannon, Black}
+		b.Grid[2][7] = Piece{Cannon, Black}
+		b.Grid[3][0] = Piece{Pawn, Black}
+		b.Grid[3][2] = Piece{Pawn, Black}
+		b.Grid[3][4] = Piece{Pawn, Black}
+		b.Grid[3][6] = Piece{Pawn, Black}
+		b.Grid[3][8] = Piece{Pawn, Black}
+	} else {
+		// 黑方先手（AI执黑），黑方在下方（靠近玩家）
+		// 黑方（下方）
+		b.Grid[9][0] = Piece{Chariot, Black}
+		b.Grid[9][1] = Piece{Horse, Black}
+		b.Grid[9][2] = Piece{Elephant, Black}
+		b.Grid[9][3] = Piece{Advisor, Black}
+		b.Grid[9][4] = Piece{King, Black}
+		b.Grid[9][5] = Piece{Advisor, Black}
+		b.Grid[9][6] = Piece{Elephant, Black}
+		b.Grid[9][7] = Piece{Horse, Black}
+		b.Grid[9][8] = Piece{Chariot, Black}
+		b.Grid[7][1] = Piece{Cannon, Black}
+		b.Grid[7][7] = Piece{Cannon, Black}
+		b.Grid[6][0] = Piece{Pawn, Black}
+		b.Grid[6][2] = Piece{Pawn, Black}
+		b.Grid[6][4] = Piece{Pawn, Black}
+		b.Grid[6][6] = Piece{Pawn, Black}
+		b.Grid[6][8] = Piece{Pawn, Black}
+
+		// 红方（上方）
+		b.Grid[0][0] = Piece{Chariot, Red}
+		b.Grid[0][1] = Piece{Horse, Red}
+		b.Grid[0][2] = Piece{Elephant, Red}
+		b.Grid[0][3] = Piece{Advisor, Red}
+		b.Grid[0][4] = Piece{King, Red}
+		b.Grid[0][5] = Piece{Advisor, Red}
+		b.Grid[0][6] = Piece{Elephant, Red}
+		b.Grid[0][7] = Piece{Horse, Red}
+		b.Grid[0][8] = Piece{Chariot, Red}
+		b.Grid[2][1] = Piece{Cannon, Red}
+		b.Grid[2][7] = Piece{Cannon, Red}
+		b.Grid[3][0] = Piece{Pawn, Red}
+		b.Grid[3][2] = Piece{Pawn, Red}
+		b.Grid[3][4] = Piece{Pawn, Red}
+		b.Grid[3][6] = Piece{Pawn, Red}
+		b.Grid[3][8] = Piece{Pawn, Red}
+	}
 }
 
 // 将数字坐标转换为标准棋谱格式
@@ -251,8 +295,13 @@ func (b *Board) toStandardNotation(start, end int) string {
 				moveType = "退"
 			}
 		}
-		// 添加移动步数
-		moveType += strconv.Itoa(abs(startRow - endRow))
+		// 添加移动步数（红方用中文数字，黑方用阿拉伯数字）
+		steps := abs(startRow - endRow)
+		if pieceColor == Red {
+			moveType += toChineseNumber(steps)
+		} else {
+			moveType += strconv.Itoa(steps)
+		}
 	} else if startRow == endRow {
 		// 纯横向移动（车、炮）
 		moveType = "平"
@@ -309,6 +358,93 @@ func abs(x int) int {
 	return x
 }
 
+// IsInCheck 检查指定颜色的将/帅是否被将军
+func (b *Board) IsInCheck(color Color) bool {
+	// 找到指定颜色的将/帅位置
+	var kingPos Position
+	found := false
+	
+	for row := 0; row < 10; row++ {
+		for col := 0; col < 9; col++ {
+			piece := b.Grid[row][col]
+			if piece.Type == King && piece.Color == color {
+				kingPos = Position{Row: row, Col: col}
+				found = true
+				break
+			}
+		}
+		if found {
+			break
+		}
+	}
+	
+	if !found {
+		return false // 将/帅已被吃，游戏应该已经结束
+	}
+	
+	// 检查对方所有棋子是否能攻击到将/帅
+	attackerColor := Red
+	if color == Red {
+		attackerColor = Black
+	}
+	
+	for row := 0; row < 10; row++ {
+		for col := 0; col < 9; col++ {
+			piece := b.Grid[row][col]
+			if piece.Color == attackerColor {
+				from := Position{Row: row, Col: col}
+				// 检查这个棋子是否能攻击到将/帅
+				if b.canAttack(from, kingPos) {
+					return true
+				}
+			}
+		}
+	}
+	
+	return false
+}
+
+// canAttack 检查棋子是否能攻击到目标位置
+func (b *Board) canAttack(from, to Position) bool {
+	// 边界检查
+	if !b.IsInBoard(from) || !b.IsInBoard(to) {
+		return false
+	}
+
+	piece := b.Grid[from.Row][from.Col]
+
+	// 检查是否有棋子
+	if piece.Type == Empty {
+		return false
+	}
+
+	// 检查目标位置是否是己方棋子
+	targetPiece := b.Grid[to.Row][to.Col]
+	if targetPiece.Color == piece.Color {
+		return false
+	}
+
+	// 根据棋子类型检查攻击规则
+	switch piece.Type {
+	case King:
+		return b.IsValidKingMove(from, to, piece.Color)
+	case Advisor:
+		return b.IsValidAdvisorMove(from, to, piece.Color)
+	case Elephant:
+		return b.IsValidElephantMove(from, to, piece.Color)
+	case Horse:
+		return b.IsValidHorseMove(from, to)
+	case Chariot:
+		return b.IsValidChariotMove(from, to)
+	case Cannon:
+		return b.IsValidCannonMove(from, to)
+	case Pawn:
+		return b.IsValidPawnMove(from, to, piece.Color)
+	}
+
+	return false
+}
+
 // IsValidMove 检查移动是否合法
 func (b *Board) IsValidMove(from, to Position) bool {
 	// 边界检查
@@ -337,22 +473,73 @@ func (b *Board) IsValidMove(from, to Position) bool {
 	// 根据棋子类型检查移动规则
 	switch piece.Type {
 	case King:
-		return b.IsValidKingMove(from, to, piece.Color)
+		if !b.IsValidKingMove(from, to, piece.Color) {
+			return false
+		}
 	case Advisor:
-		return b.IsValidAdvisorMove(from, to, piece.Color)
+		if !b.IsValidAdvisorMove(from, to, piece.Color) {
+			return false
+		}
 	case Elephant:
-		return b.IsValidElephantMove(from, to, piece.Color)
+		if !b.IsValidElephantMove(from, to, piece.Color) {
+			return false
+		}
 	case Horse:
-		return b.IsValidHorseMove(from, to)
+		if !b.IsValidHorseMove(from, to) {
+			return false
+		}
 	case Chariot:
-		return b.IsValidChariotMove(from, to)
+		if !b.IsValidChariotMove(from, to) {
+			return false
+		}
 	case Cannon:
-		return b.IsValidCannonMove(from, to)
+		if !b.IsValidCannonMove(from, to) {
+			return false
+		}
 	case Pawn:
-		return b.IsValidPawnMove(from, to, piece.Color)
+		if !b.IsValidPawnMove(from, to, piece.Color) {
+			return false
+		}
+	default:
+		return false
 	}
 
-	return false
+	// 检查将军状态：如果当前被将军，移动必须解除将军状态
+	if b.IsInCheck(b.Turn) {
+		// 模拟移动，检查移动后是否仍然被将军
+		originalPiece := b.Grid[to.Row][to.Col]
+		b.Grid[to.Row][to.Col] = piece
+		b.Grid[from.Row][from.Col] = Piece{Type: Empty, Color: None}
+		
+		stillInCheck := b.IsInCheck(b.Turn)
+		
+		// 恢复棋盘状态
+		b.Grid[from.Row][from.Col] = piece
+		b.Grid[to.Row][to.Col] = originalPiece
+		
+		// 如果移动后仍然被将军，则移动不合法
+		if stillInCheck {
+			return false
+		}
+	} else {
+		// 如果不被将军，检查移动后是否会导致己方被将军
+		originalPiece := b.Grid[to.Row][to.Col]
+		b.Grid[to.Row][to.Col] = piece
+		b.Grid[from.Row][from.Col] = Piece{Type: Empty, Color: None}
+		
+		inCheckAfterMove := b.IsInCheck(b.Turn)
+		
+		// 恢复棋盘状态
+		b.Grid[from.Row][from.Col] = piece
+		b.Grid[to.Row][to.Col] = originalPiece
+		
+		// 如果移动后会导致己方被将军，则移动不合法
+		if inCheckAfterMove {
+			return false
+		}
+	}
+
+	return true
 }
 
 // IsInBoard 检查位置是否在棋盘内
@@ -752,8 +939,8 @@ func (b *Board) MoveByChineseNotation(notation string, color Color) error {
 		return err
 	}
 
-	// 查找符合条件的棋子
-	fromRow, err := b.findPiece(pieceType, color, fromCol)
+	// 使用新的findPiece函数，传递完整棋谱字符串
+	fromRow, err := b.findPiece(pieceType, color, fromCol, notation)
 	if err != nil {
 		return err
 	}
@@ -797,8 +984,15 @@ func (b *Board) MoveByChineseNotation(notation string, color Color) error {
 					} else {
 						return fmt.Errorf("马的移动不符合日字规则")
 					}
+				} else if pieceType == Elephant {
+					// 象走田字：列差必须为2
+					colDiff := abs(toCol - fromCol)
+					if colDiff != 2 {
+						return fmt.Errorf("象的移动不符合田字规则，列差必须为2，实际为%d", colDiff)
+					}
+					toRow = fromRow - 2
 				} else {
-					// 相、士向前移动1步
+					// 士向前移动1步
 					toRow = fromRow - 1
 				}
 			} else {
@@ -812,6 +1006,12 @@ func (b *Board) MoveByChineseNotation(notation string, color Color) error {
 					} else {
 						return fmt.Errorf("马的移动不符合日字规则")
 					}
+				} else if pieceType == Elephant {
+					colDiff := abs(toCol - fromCol)
+					if colDiff != 2 {
+						return fmt.Errorf("象的移动不符合田字规则，列差必须为2，实际为%d", colDiff)
+					}
+					toRow = fromRow + 2
 				} else {
 					toRow = fromRow + 1
 				}
@@ -822,9 +1022,9 @@ func (b *Board) MoveByChineseNotation(notation string, color Color) error {
 		// 对于直线移动的棋子（车、炮、兵、卒），列不变，数字表示步数
 		if pieceType == Chariot || pieceType == Cannon || pieceType == Pawn {
 			if color == Red {
-				toRow = fromRow + target // 红方向下移动
+				toRow = fromRow + target // 红方向下移动（后退）
 			} else {
-				toRow = fromRow - target // 黑方向上移动
+				toRow = fromRow - target // 黑方向上移动（后退）
 			}
 			toCol = fromCol
 		} else {
@@ -834,33 +1034,39 @@ func (b *Board) MoveByChineseNotation(notation string, color Color) error {
 				return err
 			}
 			// 根据目标列计算行（向后移动）
-			if color == Red {
-				// 红方向下移动
-				if pieceType == Horse {
-					colDiff := abs(toCol - fromCol)
-					if colDiff == 1 {
-						toRow = fromRow + 2
-					} else if colDiff == 2 {
-						toRow = fromRow + 1
+			if pieceType == Horse {
+				colDiff := abs(toCol - fromCol)
+				if colDiff == 1 {
+					if color == Red {
+						toRow = fromRow + 2 // 红方向下移动
 					} else {
-						return fmt.Errorf("马的移动不符合日字规则")
+						toRow = fromRow - 2 // 黑方向上移动
+					}
+				} else if colDiff == 2 {
+					if color == Red {
+						toRow = fromRow + 1 // 红方向下移动
+					} else {
+						toRow = fromRow - 1 // 黑方向上移动
 					}
 				} else {
-					toRow = fromRow + 1
+					return fmt.Errorf("马的移动不符合日字规则")
+				}
+			} else if pieceType == Elephant {
+				colDiff := abs(toCol - fromCol)
+				if colDiff != 2 {
+					return fmt.Errorf("象的移动不符合田字规则，列差必须为2，实际为%d", colDiff)
+				}
+				if color == Red {
+					toRow = fromRow + 2 // 红方向下移动
+				} else {
+					toRow = fromRow - 2 // 黑方向上移动
 				}
 			} else {
-				// 黑方向上移动
-				if pieceType == Horse {
-					colDiff := abs(toCol - fromCol)
-					if colDiff == 1 {
-						toRow = fromRow - 2
-					} else if colDiff == 2 {
-						toRow = fromRow - 1
-					} else {
-						return fmt.Errorf("马的移动不符合日字规则")
-					}
+				// 士向后移动1步
+				if color == Red {
+					toRow = fromRow + 1 // 红方向下移动
 				} else {
-					toRow = fromRow - 1
+					toRow = fromRow - 1 // 黑方向上移动
 				}
 			}
 		}
@@ -934,12 +1140,42 @@ func (b *Board) parseNumber(numStr string) (int, error) {
 }
 
 // findPiece 查找指定类型和颜色的棋子在指定列的位置
-func (b *Board) findPiece(pieceType PieceType, color Color, col int) (int, error) {
+func (b *Board) findPiece(pieceType PieceType, color Color, col int, notation string) (int, error) {
+	// 收集同一列所有符合条件的棋子
+	var candidates []int
 	for row := 0; row < 10; row++ {
-		piece := b.Grid[row][col]
-		if piece.Type == pieceType && piece.Color == color {
-			return row, nil
+		if b.Grid[row][col].Type == pieceType && b.Grid[row][col].Color == color {
+			candidates = append(candidates, row)
 		}
 	}
-	return 0, fmt.Errorf("未找到棋子: type=%d, color=%d, col=%d", pieceType, color, col)
+
+	// 根据棋子数量处理
+	switch len(candidates) {
+	case 0:
+		return -1, fmt.Errorf("未找到棋子: type=%d, color=%d, col=%d", pieceType, color, col)
+	case 1:
+		return candidates[0], nil
+	default:
+		// 同列有多个相同棋子，需要根据棋谱中的"前"、"后"定位
+		return b.resolveAmbiguousPiece(candidates, notation, color)
+	}
+}
+
+func (b *Board) resolveAmbiguousPiece(candidates []int, notation string, color Color) (int, error) {
+	// 排序候选棋子位置（红方从上到下，黑方从下到上）
+	if color == Red {
+		sort.Ints(candidates)
+	} else {
+		sort.Sort(sort.Reverse(sort.IntSlice(candidates)))
+	}
+
+	// 解析棋谱中的位置修饰词（前/后）
+	if strings.Contains(notation, "前") {
+		return candidates[0], nil // 最前面的棋子
+	} else if strings.Contains(notation, "后") {
+		return candidates[len(candidates)-1], nil // 最后面的棋子
+	}
+
+	// 默认返回第一个找到的棋子（兼容旧行为）
+	return candidates[0], nil
 }

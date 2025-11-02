@@ -7,9 +7,9 @@
 set -e
 
 # Go环境配置
-export PATH="/usr/local/go/bin:$PATH"
-export GOPATH="$HOME/go"
-export PATH="$GOPATH/bin:$PATH"
+# export PATH="/usr/local/go/bin:$PATH"
+# export GOPATH="$HOME/go"
+# export PATH="$GOPATH/bin:$PATH"
 
 # 项目配置
 PROJECT_NAME="chinese-chess-ai"

@@ -89,13 +89,30 @@ type ErrorPayload struct {
 	} `json:"error"`
 }
 
-// Chat 使用会话ID与智能体交互
+// ChatResponse 聊天响应结构
+type ChatResponseData struct {
+	ThoughtProcess string // AI思考过程（来自SSE的thought消息）
+	FullResponse   string // 完整回复（包含MOVE指令）
+	AIAnalysis     string // AI分析（从THOUGHT:后提取的内容）
+	MoveInstruction string // 走子指令（从MOVE:后提取的内容）
+}
+
+// Chat 使用会话ID与智能体交互，返回思考过程（用于显示）
 func (c *Client) Chat(sessionID, prompt string) (string, error) {
+	response, err := c.ChatWithDetails(sessionID, prompt)
+	if err != nil {
+		return "", err
+	}
+	return response.ThoughtProcess, nil
+}
+
+// ChatWithDetails 使用会话ID与智能体交互，返回详细响应
+func (c *Client) ChatWithDetails(sessionID, prompt string) (*ChatResponseData, error) {
 	// 构建请求体
 	reqBody := map[string]interface{}{
 		"session_id":     sessionID,
 		"content":        prompt,
-		"bot_app_key":    c.config.AppID,
+		"bot_app_key":    c.config.BotAppKey,
 		"visitor_biz_id": "player_1",
 		"search_network": "disable",
 		"incremental":    true,
@@ -103,7 +120,7 @@ func (c *Client) Chat(sessionID, prompt string) (string, error) {
 
 	reqBodyJSON, err := json.Marshal(reqBody)
 	if err != nil {
-		return "", fmt.Errorf("marshal request failed: %v", err)
+		return nil, fmt.Errorf("marshal request failed: %v", err)
 	}
 
 	log.Printf("[LKE] 请求体: %s", string(reqBodyJSON))
@@ -114,7 +131,7 @@ func (c *Client) Chat(sessionID, prompt string) (string, error) {
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.sseURL, bytes.NewReader(reqBodyJSON))
 	if err != nil {
-		return "", fmt.Errorf("create request failed: %v", err)
+		return nil, fmt.Errorf("create request failed: %v", err)
 	}
 
 	// 设置请求头
@@ -129,13 +146,13 @@ func (c *Client) Chat(sessionID, prompt string) (string, error) {
 	}
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		return "", fmt.Errorf("send request failed: %v", err)
+		return nil, fmt.Errorf("send request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("SSE error: status=%d, body=%s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("SSE error: status=%d, body=%s", resp.StatusCode, string(body))
 	}
 
 	log.Printf("[LKE] SSE连接成功，开始接收流式响应")
@@ -190,14 +207,40 @@ func (c *Client) Chat(sessionID, prompt string) (string, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("read SSE stream failed: %v", err)
+		return nil, fmt.Errorf("read SSE stream failed: %v", err)
 	}
 
 	if lastError != "" {
-		return "", fmt.Errorf("LKE error: %s", lastError)
+		return nil, fmt.Errorf("LKE error: %s", lastError)
 	}
 
-	return answer.String(), nil
+	// 解析AI回答中的THOUGHT和MOVE内容
+	aiAnalysis, moveInstruction, parseErr := c.ExtractThoughtAndMove(answer.String())
+	if parseErr != nil {
+		log.Printf("[LKE] 解析THOUGHT和MOVE失败: %v", parseErr)
+	}
+
+	// 打印汇总日志
+	log.Printf("[LKE] === AI回包汇总 ===")
+	log.Printf("[LKE] 思考过程长度: %d 字符", len(thought.String()))
+	log.Printf("[LKE] 完整回复长度: %d 字符", len(answer.String()))
+	log.Printf("[LKE] AI分析内容: %s", aiAnalysis)
+	log.Printf("[LKE] 走子指令: %s", moveInstruction)
+	if thought.Len() > 0 {
+		log.Printf("[LKE] 思考过程内容: %s", thought.String())
+	}
+	if answer.Len() > 0 {
+		log.Printf("[LKE] 完整回复内容: %s", answer.String())
+	}
+	log.Printf("[LKE] === 回包汇总结束 ===")
+
+	// 返回详细响应数据
+	return &ChatResponseData{
+		ThoughtProcess:  thought.String(),
+		FullResponse:    answer.String(),
+		AIAnalysis:      aiAnalysis,
+		MoveInstruction: moveInstruction,
+	}, nil
 }
 
 // buildPrompt 构建完整提示
@@ -226,6 +269,65 @@ func (c *Client) buildPrompt(req ChatRequest) string {
 }
 
 // ExtractChineseMove 从AI回答中提取中文棋谱
+// ExtractThoughtAndMove 从AI回答中分别提取THOUGHT和MOVE内容
+func (c *Client) ExtractThoughtAndMove(answer string) (thought string, move string, err error) {
+	log.Printf("[LKE] 开始解析AI回答，分别提取THOUGHT和MOVE内容")
+	log.Printf("[LKE] AI完整回答: %s", answer)
+	
+	// 提取THOUGHT内容 - 使用更简单的正则表达式
+	thoughtPattern := regexp.MustCompile(`THOUGHT:\s*([^M]*?)(?:MOVE:|$)`)
+	thoughtMatches := thoughtPattern.FindStringSubmatch(answer)
+	if len(thoughtMatches) >= 2 {
+		thought = strings.TrimSpace(thoughtMatches[1])
+		log.Printf("[LKE] 提取到的AI分析: %s", thought)
+	}
+	
+	// 如果上面的方法没有匹配到，尝试更宽松的匹配
+	if thought == "" {
+		// 查找THOUGHT:到MOVE:之间的内容
+		thoughtStart := strings.Index(answer, "THOUGHT:")
+		moveStart := strings.Index(answer, "MOVE:")
+		if thoughtStart != -1 && moveStart != -1 && moveStart > thoughtStart {
+			thoughtContent := answer[thoughtStart+8:moveStart] // 8是"THOUGHT:"的长度
+			thought = strings.TrimSpace(thoughtContent)
+			log.Printf("[LKE] 通过字符串截取提取到的AI分析: %s", thought)
+		} else if thoughtStart != -1 && moveStart == -1 {
+			// 只有THOUGHT没有MOVE
+			thoughtContent := answer[thoughtStart+8:]
+			thought = strings.TrimSpace(thoughtContent)
+			log.Printf("[LKE] 提取到的AI分析（无MOVE）: %s", thought)
+		}
+	}
+	
+	// 提取MOVE内容 - 只匹配中文棋谱格式
+	movePattern := regexp.MustCompile(`MOVE:\s*([炮车马相象士将帅兵卒][一二三四五六七八九\d][进退平][一二三四五六七八九\d])`)
+	moveMatches := movePattern.FindStringSubmatch(answer)
+	if len(moveMatches) >= 2 {
+		move = strings.TrimSpace(moveMatches[1])
+		log.Printf("[LKE] 提取到的走子指令: %s", move)
+	}
+	
+	// 如果没有找到MOVE，尝试直接匹配中文棋谱格式
+	if move == "" {
+		chineseMovePattern := regexp.MustCompile(`([炮车马相象士将帅兵卒])([\d一二三四五六七八九])([进退平])([\d一二三四五六七八九])`)
+		allChineseMatches := chineseMovePattern.FindAllStringSubmatch(answer, -1)
+		if len(allChineseMatches) > 0 {
+			matches := allChineseMatches[len(allChineseMatches)-1]
+			if len(matches) >= 5 {
+				move = matches[1] + matches[2] + matches[3] + matches[4]
+				log.Printf("[LKE] 从回答中直接提取到的中文棋谱: %s", move)
+			}
+		}
+	}
+	
+	if move == "" {
+		log.Printf("[LKE] 无法从回答中提取走子指令")
+		return thought, "", fmt.Errorf("无法从回答中提取走子指令")
+	}
+	
+	return thought, move, nil
+}
+
 func (c *Client) ExtractChineseMove(answer string) (string, error) {
 	log.Printf("[LKE] 开始解析AI回答，提取中文棋谱")
 	log.Printf("[LKE] AI完整回答: %s", answer)

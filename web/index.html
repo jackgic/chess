@@ -7,53 +7,126 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>中国象棋 AI 对弈</h1>
-        
-        <div class="game-controls">
-            <div class="color-selection">
-                <label>选择你的颜色：</label>
-                <button id="redBtn" class="color-btn active" data-color="1">红方（先手）</button>
-                <button id="blackBtn" class="color-btn" data-color="2">黑方（后手）</button>
+    <div class="app-container">
+        <!-- 顶部导航栏 -->
+        <header class="top-header">
+            <div class="header-left">
+                <div class="logo">
+                    <span class="logo-icon">♔</span>
+                    <span class="logo-text">中国象棋</span>
+                </div>
             </div>
-            <button id="newGameBtn" class="btn btn-primary">开始新游戏</button>
-        </div>
+            <div class="header-center">
+                <div id="currentTurn" class="game-status">准备开始</div>
+            </div>
+            <!-- 移除了重复的新游戏按钮，使用棋盘控制区域的重新开始按钮 -->
+        </header>
 
-        <div id="gameInfo" class="game-info" style="display: none;">
-            <div class="info-item">
-                <span class="label">当前回合：</span>
-                <span id="currentTurn" class="value"></span>
-            </div>
-            <div class="info-item">
-                <span class="label">游戏状态：</span>
-                <span id="gameStatus" class="value">进行中</span>
-            </div>
-        </div>
+        <!-- 主内容区域 -->
+        <div class="main-content">
+            <!-- 左侧边栏 -->
+            <aside class="left-sidebar">
+                <!-- 玩家信息卡片 -->
+                <div class="player-card">
+                    <div class="player-header">
+                        <div class="player-avatar">👤</div>
+                        <div class="player-info">
+                            <h3>玩家</h3>
+                            <p class="player-color" id="playerColorText">红方</p>
+                        </div>
+                    </div>
+                </div>
 
-        <div id="gameArea" class="game-area" style="display: none;">
-            <div id="boardContainer" class="board-container">
-                <canvas id="chessBoard" width="540" height="600"></canvas>
-            </div>
+                <!-- AI信息卡片 -->
+                <div class="player-card ai-card">
+                    <div class="player-header">
+                        <div class="player-avatar ai-avatar">🤖</div>
+                        <div class="player-info">
+                            <h3>AI 对手</h3>
+                            <p class="player-color">智能AI</p>
+                        </div>
+                    </div>
+                </div>
 
-            <div class="ai-panel">
+                <!-- AI思考状态 -->
                 <div id="aiThinking" class="ai-thinking" style="display: none;">
-                    <div class="spinner"></div>
-                    <span>AI 思考中...</span>
+                    <div class="thinking-indicator">
+                        <div class="spinner"></div>
+                        <span>AI 正在思考...</span>
+                    </div>
                 </div>
 
-                <div id="aiResponse" class="ai-response" style="display: none;">
-                    <h3>AI 分析：</h3>
-                    <p id="aiAnswer"></p>
+                <!-- AI分析 -->
+                <div id="aiResponse" class="ai-analysis" style="display: none;">
+                    <h4>🧠 AI 分析</h4>
+                    <div id="aiAnswer" class="analysis-content"></div>
                 </div>
-            </div>
-        </div>
+            </aside>
 
-        <div id="moveHistory" class="move-history" style="display: none;">
-            <h3>走子历史</h3>
-            <div id="moveList"></div>
+            <!-- 中央棋盘区域 -->
+            <main class="board-area">
+                <!-- 游戏控制面板 -->
+                <div id="gameControls" class="game-setup">
+                    <h2>选择你的阵营</h2>
+                    <div class="color-selection">
+                        <button id="redBtn" class="color-option active" data-color="1">
+                            <span class="color-icon red">🔴</span>
+                            <span class="color-name">红方</span>
+                            <span class="color-desc">先手</span>
+                        </button>
+                        <button id="blackBtn" class="color-option" data-color="2">
+                            <span class="color-icon black">⚫</span>
+                            <span class="color-name">黑方</span>
+                            <span class="color-desc">后手</span>
+                        </button>
+                    </div>
+                    <button id="startGameBtn" class="start-game-btn">开始游戏</button>
+                </div>
+
+                <!-- 棋盘容器 -->
+                <div id="gameArea" class="chess-board-wrapper" style="display: none;">
+                    <div class="board-container">
+                        <canvas id="chessBoard" width="540" height="600"></canvas>
+                    </div>
+                    
+                    <!-- 棋盘控制按钮 -->
+                    <div class="board-controls">
+                        <button id="undoBtn" class="control-btn">
+                            <span class="btn-icon">⏪</span>
+                            <span>悔棋</span>
+                        </button>
+                        <button id="restartBtn" class="control-btn">
+                            <span class="btn-icon">🔄</span>
+                            <span>重新开始</span>
+                        </button>
+                        <button id="hintBtn" class="control-btn">
+                            <span class="btn-icon">💡</span>
+                            <span>提示</span>
+                        </button>
+                    </div>
+                </div>
+            </main>
+
+            <!-- 右侧边栏 -->
+            <aside class="right-sidebar">
+                <!-- 游戏信息 -->
+                <div id="gameInfo" class="game-info-panel" style="display: none;">
+                    <h4>📊 游戏信息</h4>
+                    <div class="info-item">
+                        <span class="info-label">游戏状态：</span>
+                        <span id="gameStatus" class="info-value">进行中</span>
+                    </div>
+                </div>
+
+                <!-- 走子历史 -->
+                <div class="move-history">
+                    <h4>📜 走子记录</h4>
+                    <div id="moveList" class="move-list"></div>
+                </div>
+            </aside>
         </div>
     </div>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=20251102214246"></script>
 </body>
 </html>
